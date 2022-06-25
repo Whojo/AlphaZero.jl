@@ -1,43 +1,28 @@
-using Documenter
-using AlphaZero
+"""
+This script builds the Pollen.jl documentation so that it can be loaded
+by the frontend. It accepts one argument: the path where the generated
+files should be stored.
 
-const PRETTY_URLS = get(ENV, "CI", nothing) == "true"
+    > julia docs/make.jl DIR
 
-makedocs(
-  sitename = "AlphaZero",
-  authors="Jonathan Laurent",
-  format = Documenter.HTML(prettyurls=PRETTY_URLS),
-  modules = [AlphaZero],
-  pages = [
-    "Home" => "index.md",
-    "Guided Tour" => [
-      "tutorial/alphazero_intro.md",
-      "tutorial/package_overview.md",
-      "tutorial/connect_four.md",
-      "tutorial/own_game.md"
-    ],
-    "Reference" => [
-      "reference/params.md",
-      "reference/game_interface.md",
-      "reference/mcts.md",
-      "reference/network.md",
-      "reference/networks_library.md",
-      "reference/player.md",
-      "reference/memory.md",
-      "reference/environment.md",
-      "reference/benchmark.md",
-      "reference/reports.md",
-      "reference/experiment.md",
-      "reference/ui.md",
-      "reference/scripts.md"
-    ],
-    "Contributing" => [
-      "contributing/guide.md"
-    ]
-  ],
-  repo="https://github.com/jonathan-laurent/AlphaZero.jl/blob/{commit}{path}#L{line}"
-)
+Use `./serve.jl` for interactive development.
+"""
 
-deploydocs(;
-  repo="github.com/jonathan-laurent/AlphaZero.jl",
+# Create target folder
+isempty(ARGS) && error("Please pass a file path to make.jl:\n\t> julia docs/make.jl DIR ")
+DIR = abspath(mkpath(ARGS[1]))
+
+# Create Project
+project = include("project.jl")
+
+@info "Rewriting documents..."
+Pollen.rewritesources!(project)
+
+@info "Writing to disk at \"$DIR\"..."
+Pollen.build(
+    FileBuilder(
+        JSONFormat(),
+        DIR,
+    ),
+    project,
 )
