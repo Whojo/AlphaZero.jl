@@ -1,4 +1,26 @@
 {
-    "README": "documents/README.md",
-    "Reference": "references/AlphaZero.jl"
+    "Home": "documents/docs/src/index.md",
+    "Guided Tour": {
+        "Alphazero intro": "documents/docs/src/tutorial/alphazero_intro.md",
+        "Package overview": "documents/docs/src/tutorial/package_overview.md",
+        "Connect four": "documents/docs/src/tutorial/connect_four.md",
+        "Own game": "documents/docs/src/tutorial/own_game.md"
+    },
+    "Reference": {
+        "Params": "documents/docs/src/reference/params.md",
+        "Game interface": "documents/docs/src/reference/game_interface.md",
+        "Mcts": "documents/docs/src/reference/mcts.md",
+        "Network": "documents/docs/src/reference/network.md",
+        "Network library": "documents/docs/src/reference/networks_library.md",
+        "Player": "documents/docs/src/reference/player.md",
+        "Memory": "documents/docs/src/reference/memory.md",
+        "Environment": "documents/docs/src/reference/environment.md",
+        "Benchmark": "documents/docs/src/reference/benchmark.md",
+        "Reports": "documents/docs/src/reference/reports.md",
+        "Experiment": "documents/docs/src/reference/experiment.md",
+        "UI": "documents/docs/src/reference/ui.md",
+        "Scripts": "documents/docs/src/reference/scripts.md"
+    },
+    "Contributing": "documents/docs/src/contributing/guide.md",
+    "New reference": "references/AlphaZero"
 }
