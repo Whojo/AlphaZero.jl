@@ -229,6 +229,7 @@ More precisely, if its child have been visited at least one time, it computes it
 ```jldoctest
 julia> using RLZero
 julia> using .Tests
+julia> using .BitwiseTicTacToe: BatchedEnvs.act
 
 julia> policy = BatchedMctsAosTests.uniform_mcts_tic_tac_toe(CPU())
 [...]
@@ -236,10 +237,21 @@ julia> policy = BatchedMctsAosTests.uniform_mcts_tic_tac_toe(CPU())
 julia> envs = BatchedMctsAosTests.tic_tac_toe_winning_envs()
 [...]
 
-julia> tree = explore(policy, envs)
+julia> tree = BatchedMctsAos.explore(policy, envs)
 [...]
 
-julia> 
+julia> qvalues = completed_qvalues(tree, tree[1, 1], 1) # How to use `completed_qvalues`
+# TODO: add values here when bug fixed
+
+julia> best_move = argmax(qvalues)
+3
+
+julia> act(envs[1], best_move)[1] # Play the best move
+[...]
+x . .
+. x .
+x o o
+```
 """
 function completed_qvalues(tree, node, bid)
     root_value = root_value_estimate(tree, node, bid)
@@ -251,11 +263,28 @@ function completed_qvalues(tree, node, bid)
     return SVector{na}(ret)
 end
 
+"""
+    function num_child_visits(tree, node, bid, i)
+
+Return the number of time the child at index `i` of `node` have been visited.
+
+`Tree` and batch id `bid` are also needed to access child information.
+"""
 function num_child_visits(tree, node, bid, i)
     cnid = node.children[i]
     return cnid > 0 ? tree[bid, cnid].num_visits : Int16(0)
 end
 
+"""
+    function qcoeff(mcts, tree, node, bid)
+
+Compute the qcoeff for a given Gumbel `mcts` policy and a given `node`.
+    
+`Tree` and batch id `bid` are also needed to access child information.
+
+# Notes
+The paper introduces a sigma function, which we implement by sigma(q) = qcoeff * q
+"""
 function qcoeff(mcts, tree, node, bid)
     na = length(node.children)
     # init is necessary for GPUCompiler right now...
@@ -265,11 +294,26 @@ function qcoeff(mcts, tree, node, bid)
     return mcts.value_scale * (mcts.max_visit_init + max_child_visit)
 end
 
+"""
+    function target_policy(mcts, tree, node, bid)
+
+Compute the target policy used to choose an action on `node`, depending on a given `mcts`
+and return it as a probability distribution vector.
+
+`Tree` and batch id `bid` are also needed to access child information.
+"""
 function target_policy(mcts, tree, node, bid)
     qs = completed_qvalues(tree, node, bid)
     return softmax(log.(node.prior) + qcoeff(mcts, tree, node, bid) * qs)
 end
 
+"""
+    function select_nonroot_action(mcts, tree, node, bid)
+
+Select the best move to play for a `node`, accordingly to a given `mcts` policy.
+
+`Tree` and batch id `bid` are also needed to access child information.
+"""
 function select_nonroot_action(mcts, tree, node, bid)
     policy = target_policy(mcts, tree, node, bid)
     na = length(node.children)
@@ -280,6 +324,30 @@ function select_nonroot_action(mcts, tree, node, bid)
     end
 end
 
+"""
+    function select!(mcts, tree, simnum)
+        
+Starting from the root of `tree`, recursively follow the best move according to the target
+policy and return the first unseen or terminal node as a new frontier.
+
+If it frontier was unseen before, a new `Node` is created in the `tree` at index `simnum`.
+After the node is added, one expect the oracle to be called on all frontier nodes where
+terminal=false.
+"""
+function select!(mcts, tree, simnum)
+    (; ne) = tree_dims(tree)
+    batch_ids = DeviceArray(mcts.device)(1:ne)
+    frontier = map(batch_ids) do bid
+        return select!(mcts, tree, simnum, bid)
+    end
+    return frontier
+end
+
+"""
+    function select!(mcts, tree, simnum, bid)
+
+Same behavior for a specific batch id `bid`.
+"""
 function select!(mcts, tree, simnum, bid)
     (; na) = tree_dims(tree)
     cur = Int16(1)  # start at the root
@@ -311,19 +379,14 @@ function select!(mcts, tree, simnum, bid)
     end
 end
 
-# Start from the root and add a new frontier (whose index is returned)
-# After the node is added, one expect the oracle to be called on all
-# frontier nodes where terminal=false.
-function select!(mcts, tree, simnum)
-    (; ne) = tree_dims(tree)
-    batch_ids = DeviceArray(mcts.device)(1:ne)
-    frontier = map(batch_ids) do bid
-        return select!(mcts, tree, simnum, bid)
-    end
-    return frontier
-end
+"""
+    function backpropagate!(mcts, tree, frontier)
 
-# Value: if terminal node: terminal value / otherwise: network value
+Update node values along the path to the `frontier` node in the `tree`.
+
+More precisely, the number of visits `num_visits` and the `total_rewards` are updated for
+the nodes of the path.
+"""
 function backpropagate!(mcts, tree, frontier)
     (; ne) = tree_dims(tree)
     batch_ids = DeviceArray(mcts.device)(1:ne)
@@ -348,6 +411,40 @@ function backpropagate!(mcts, tree, frontier)
     return nothing
 end
 
+"""
+    function explore(mcts, envs)
+
+Run MCTS search on the current environments `envs` for a given `mcts` policy and return a
+batched MCTS tree.
+
+# Example
+```jldoctest
+julia> using RLZero
+julia> using .Tests
+julia> using .BitwiseTicTacToe: BatchedEnvs.act
+
+julia> policy = BatchedMctsAosTests.uniform_mcts_tic_tac_toe(CPU())
+[...]
+
+julia> envs = BatchedMctsAosTests.tic_tac_toe_winning_envs()
+[...]
+
+julia> tree = BatchedMctsAos.explore(policy, envs) # How to use `explore`
+[...]
+
+julia> qvalues = completed_qvalues(tree, tree[1, 1], 1)
+# TODO: add values here when bug fixed
+
+julia> best_move = argmax(qvalues)
+3
+
+julia> act(envs[1], best_move)[1] # Play the best move
+[...]
+x . .
+. x .
+x o o
+```
+"""
 function explore(mcts, envs)
     tree = create_tree(mcts, envs)
     (; ne, ns) = tree_dims(tree)
@@ -361,12 +458,30 @@ function explore(mcts, envs)
     return tree
 end
 
-#####
-## Some standard oracles
-#####
+"""
+# Some standard oracles
+"""
 
 """
+    function uniform_oracle(env)
+
 Oracle that always returns a value of 0 and a uniform policy.
+
+Useful for testing and setting up a pipeline. Can be used as oracle in the struct `Policy`.
+        
+# Example
+```jldoctest
+julia> using RLZero
+julia> using .Tests
+
+julia> envs = BatchedMctsAosTests.tic_tac_toe_winning_envs()
+[...]
+
+julia> BatchedMctsAos.uniform_oracle(envs[1])
+(Float32[0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111], 0.0f0)
+```
+
+See also `RolloutOracle`.
 """
 function uniform_oracle(env)
     n = num_actions(env)
@@ -380,6 +495,24 @@ Oracle that performs a single random rollout to estimate state value.
 
 Given a state, the oracle selects random actions until a leaf node is reached.
 The resulting cumulative reward is treated as a stochastic value estimate.
+Return a tuple with an uniform policy and the stochastic value estimate for the given
+environment `env`.
+
+# Example
+```jldoctest
+julia> using RLZero
+julia> using .Tests
+julia> using Random: MersenneTwister
+
+julia> envs = BatchedMctsAosTests.tic_tac_toe_winning_envs()
+[...]
+
+julia> rollout_oracle = BatchedMctsAos.RolloutOracle(MersenneTwister(0))
+julia> rollout_oracle(envs[1])
+(Float32[0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111], -1.0)
+```
+
+See also `uniform_oracle`.
 """
 struct RolloutOracle{RNG<:AbstractRNG}
     rng::RNG
