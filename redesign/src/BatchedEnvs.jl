@@ -1,7 +1,7 @@
 """
 Interface for batchable environements that can be run on the GPU.
 
-# implementation
+# Implementation
 To implement this interface, please provide a method for each of these functions as
 described bellow: `num_actions`, `valid_actions`, `act` and `terminated`.
 
