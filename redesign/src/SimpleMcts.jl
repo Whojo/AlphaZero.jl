@@ -21,8 +21,23 @@ export RolloutOracle, uniform_oracle
 """
 An MCTS tree.
 
-MCTS trees are represented by graph of structures in memory.
-We store Q-values for each nodes instead of of storing values
+# Attributes
+- `oracle_value::Float32`: value estimated by the oracle (e.g. `uniform_oracle`) when a
+     `Tree` is created.
+- `children::Vector{Union{Nothing,Tree}}`: children of the current `Tree`. The indexes
+    of each child correspond to the one given by `legal_action_space(env)`, with `env` the
+    implicit environment (as defined in ReinforcementLearningEnvironment.jl) associated
+    with this `Tree` during exploration (i.e. `explore` function).
+- `prior::Vector{Float32}`: prior probabilities estimated by the oracle
+     (e.g. `uniform_oracle`) when a `Tree` is created.
+- `num_visits::Vector{Int32}`: number of visits of the current `Tree` during the Mcts
+    exploration (i.e. `explore` function).
+- `total_rewards::Vector{Float64}`: sum of the accumulated rewards of the current 
+    `Tree` during the Mcts exploration (i.e. `explore` function).
+
+# Notes
+This MCTS tree is represented by tree of structures in memory.
+We store Q-values for each nodes instead of storing values
 so as to make it easier to handle terminal states.
 """
 mutable struct Tree
@@ -35,6 +50,20 @@ end
 
 """
 An MCTS Policy that leverages an external oracle.
+
+# Attributes
+- `oracle::Oracle`: function that, given an environment (as defined in
+    ReinforcementLearningEnvironment.jl), computes the prior probabilities associated with
+    its actions (children of a Mcts `Tree`) and the value associated with the provided
+    environment.
+- `num_simulations::Int`: number of simulations to run on the given Mcts `Tree`.
+- `num_considered_actions::Int`: ... # TODO
+- `value_scale::Float64`: ... # TODO
+- `max_visit_init::Int`: ... # TODO
+
+# Notes
+The attributes `num_conidered_actions`, `value_scale` and `max_visit_init` are specific to
+the gumbel implementation.
 """
 @kwdef struct Policy{Oracle}
     oracle::Oracle
@@ -44,28 +73,69 @@ An MCTS Policy that leverages an external oracle.
     max_visit_init::Int
 end
 
+"""
+    function num_children(node::Tree)
+    
+Number of `children` associated to a given `node`.
+"""
 num_children(node::Tree) = length(node.children)
 
+"""
+    function max_child_visits(node::Tree)
+
+Maximum `num_visits` among the `children` of a given `node`.
+"""
 max_child_visits(node::Tree) = maximum(node.num_visits; init=0)
 
+"""
+    function visited_children_indices(node::Tree)
+        
+Return, for a given `node`, the indices of the `children` that have been visited at least
+once during exploration.
+"""
 function visited_children_indices(node::Tree)
     return (i for i in eachindex(node.children) if node.num_visits[i] > 0)
 end
 
+"""
+    function children_indices(node::Tree)
+    
+Return the indices of each `children` of a given `node`.
+"""
 children_indices(node::Tree) = eachindex(node.children)
 
+"""
+    function qvalue(node::Tree, i)
+
+Compute the qvalue for an action `i` from a given `node`.
+"""
 function qvalue(node::Tree, i)
     n = node.num_visits[i]
     @assert n > 0
     return node.total_rewards[i] / n
 end
 
+"""
+    function qcoeff(mcts::Policy, node::Tree)
+
+Compute the qcoeff for a given Gumbel `mcts` policy and a given `node`.
+    
+# Notes
+The paper introduces a sigma function, which we implement by
+sigma(q) = qcoeff * q
+"""
 function qcoeff(mcts::Policy, node::Tree)
-    # The paper introduces a sigma function, which we implement by
-    # sigma(q) = qcoeff * q
     return mcts.value_scale * (mcts.max_visit_init + max_child_visits(node))
 end
 
+"""
+    function root_value_estimate(node::Tree)
+
+Compute the root value for a given `node`.
+
+Its value depends on the `num_visits` and `qvalue` of all of its children and its
+`oracle_value`. See the code for more details.
+"""
 function root_value_estimate(node::Tree)
     total_visits = sum(node.num_visits)
     root_value = node.oracle_value
@@ -79,6 +149,49 @@ function root_value_estimate(node::Tree)
     return (root_value + total_visits * children_value) / (1 + total_visits)
 end
 
+"""
+    function completed_qvalues(node::Tree)
+
+Return a list of estimated qvalue of all children for a given `node`.
+
+More precisely, if its child have been visited at least one time, it computes its real
+`qvalue`, otherwise, it uses the `root_value_estimate` of `node` instead.
+
+# Example
+```jldoctest
+julia> using RLZero, ReinforcementLearningBase
+julia> using .Tests
+
+julia> policy = SimpleMctsTests.uniform_mcts_policy()
+[...]
+
+julia> env = TestEnvs.tictactoe_winning()
+[...]
+x . .
+. x .
+. o o
+
+julia> tree = explore(policy, env)
+[...]
+
+julia> qvalues = SimpleMcts.completed_qvalues(tree) # How to use `completed_qvalues`
+5-element Vector{Float64}:
+ -1.0
+  0.9595959595959596
+ -0.020002000200020006
+ -0.020002000200020006
+ -0.020002000200020006
+
+julia> best_move = argmax(qvalues)
+2
+
+julia> env(legal_action_space(env)[best_move]); env # Play the best move
+[...]
+x . .
+. x .
+x o o
+```
+"""
 function completed_qvalues(node::Tree)
     root_value = root_value_estimate(node)
     return map(children_indices(node)) do i
@@ -86,6 +199,11 @@ function completed_qvalues(node::Tree)
     end
 end
 
+"""
+    function create_node(env::AbstractEnv, oracle)
+    
+Create a new `Tree` node for a given environment `env` and an `oracle`.
+"""
 function create_node(env::AbstractEnv, oracle)
     prior, value = oracle(env)
     num_actions = length(legal_action_space(env))
@@ -97,8 +215,40 @@ function create_node(env::AbstractEnv, oracle)
 end
 
 """
-Run MCTS search with Gumbel exploration noise on the current state
-and return an MCTS tree.
+    function gumbel_explore(mcts::Policy, env::AbstractEnv, rng::AbstractRNG)
+
+Run MCTS search with Gumbel exploration noise on the current environment `env`
+with a given `mcts` policy and return an MCTS tree.
+
+The `rng` parameter is here used for replicability.
+ 
+# Example
+```jldoctest
+julia> using RLZero, ReinforcementLearningBase
+julia> using Random: MersenneTwister
+julia> using .Tests
+
+julia> policy = SimpleMctsTests.uniform_mcts_policy()
+[...]
+
+julia> env = TestEnvs.tictactoe_winning()
+[...]
+x . .
+. x .
+. o o
+
+julia> tree = gumbel_explore(policy, env, MersenneTwister(0)) # How to use `gumbel_explore`
+[...]
+
+julia> best_move = argmax(SimpleMcts.completed_qvalues(tree))
+2
+
+julia> env(legal_action_space(env)[best_move]); env # Play the best move
+[...]
+x . .
+. x .
+x o o
+```
 """
 function gumbel_explore(mcts::Policy, env::AbstractEnv, rng::AbstractRNG)
     # Creating an empty tree, sampling the Gumbel variables
@@ -144,7 +294,38 @@ function gumbel_explore(mcts::Policy, env::AbstractEnv, rng::AbstractRNG)
 end
 
 """
-Run MCTS search on the current state and return an MCTS tree.
+    function explore(mcts::Policy, env::AbstractEnv)
+
+Run MCTS search on the current environment `env` for a given `mcts` policy and return an
+MCTS tree.
+
+# Example
+```jldoctest
+julia> using RLZero, ReinforcementLearningBase
+julia> using Random: MersenneTwister
+julia> using .Tests
+
+julia> policy = SimpleMctsTests.uniform_mcts_policy()
+[...]
+
+julia> env = TestEnvs.tictactoe_winning()
+[...]
+x . .
+. x .
+. o o
+
+julia> tree = explore(policy, env, MersenneTwister(0)) # How to use `explore`
+[...]
+
+julia> best_move = argmax(SimpleMcts.completed_qvalues(tree))
+2
+
+julia> env(legal_action_space(env)[best_move]); env # Play the best move
+[...]
+x . .
+. x .
+x o o
+```
 """
 function explore(mcts::Policy, env::AbstractEnv)
     node = create_node(env, mcts.oracle)
@@ -154,6 +335,14 @@ function explore(mcts::Policy, env::AbstractEnv)
     return node
 end
 
+"""
+    function run_simulation_from_child(mcts::Policy, node::Tree, env::AbstractEnv, i)
+        
+Run MCTS search for a given `mcts` policy on the environment `env` with an action `i` played
+and return the acquired reward.
+
+This function is used internally and run indirecly by `explore` and `gumbel_explore`.
+"""
 function run_simulation_from_child(mcts::Policy, node::Tree, env::AbstractEnv, i)
     prev_player = current_player(env)
     actions = legal_action_space(env)
@@ -176,16 +365,33 @@ function run_simulation_from_child(mcts::Policy, node::Tree, env::AbstractEnv, i
     return value
 end
 
+"""
+    function run_simulation(mcts::Policy, node::Tree, env::AbstractEnv)
+
+Select an action in a given environment `env` and run a simulation on this action according
+to a `mcts` policy, and return the acquired reward.
+"""
 function run_simulation(mcts::Policy, node::Tree, env::AbstractEnv)
     i = select_nonroot_action(mcts, node)
     return run_simulation_from_child(mcts, node, env, i)
 end
 
+"""
+    function target_policy(mcts::Policy, node::Tree)
+
+Compute the target policy used to choose an action on `node`, depending on a given `mcts`
+and return it as a probability distribution vector.
+"""
 function target_policy(mcts::Policy, node::Tree)
     qs = completed_qvalues(node)
     return softmax(log.(node.prior) + qcoeff(mcts, node) * qs)
 end
 
+"""
+    function select_nonroot_action(mcts::Policy, node::Tree)
+        
+Select the best move to play for a `node`, accordingly to a given `policy`.
+"""
 function select_nonroot_action(mcts::Policy, node::Tree)
     policy = target_policy(mcts, node)
     total_visits = sum(node.num_visits)
@@ -194,12 +400,26 @@ function select_nonroot_action(mcts::Policy, node::Tree)
     )
 end
 
-#####
-## Some standard oracles
-#####
+"""
+# Some standard oracles
+"""
 
 """
+    function uniform_oracle(env::AbstractEnv)
+
 Oracle that always returns a value of 0 and a uniform policy.
+
+Useful for testing and setting up a pipeline. Can be used as oracle in the struct `Policy`.
+
+# Example
+```jldoctest
+julia> using RLZero, ReinforcementLearningEnvironments
+julia> env = RandomWalk1D()
+[...]
+
+julia> uniform_oracle(env)
+([0.5, 0.5], 0.0)
+```
 """
 function uniform_oracle(env::AbstractEnv)
     n = length(legal_action_space(env))
@@ -213,6 +433,21 @@ Oracle that performs a single random rollout to estimate state value.
 
 Given a state, the oracle selects random actions until a leaf node is reached.
 The resulting cumulative reward is treated as a stochastic value estimate.
+Return a tuple with an uniform policy and the stochastic value estimate for the given
+environment `env`.
+
+# Example
+```jldoctest
+julia> using RLZero, ReinforcementLearningEnvironments
+julia> using Random: MersenneTwister
+
+julia> env = RandomWalk1D()
+[...]
+
+julia> rollout_oracle = RolloutOracle(MersenneTwister(0))
+julia> rollout_oracle(env)
+([0.5, 0.5], -1.0)
+```
 """
 struct RolloutOracle{RNG<:AbstractRNG}
     rng::RNG
