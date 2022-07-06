@@ -12,7 +12,7 @@ interface.
 """
 module BatchedEnvs
 
-export num_actions, valid_action, act, terminated
+export num_actions, valid_actions, act, terminated
 
 """
     function num_actions(env::BatchedEnvs)
@@ -34,7 +34,7 @@ environment `env`.
 Return boolean indicating whether the action at index `pos` is legal in the
 environment `env`.
 """
-function valid_action end
+function valid_actions end
 
 """
     function act(env::BatchedEnvs, pos)

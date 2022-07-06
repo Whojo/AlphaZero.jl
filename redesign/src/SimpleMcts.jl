@@ -67,10 +67,10 @@ the gumbel implementation.
 """
 @kwdef struct Policy{Oracle}
     oracle::Oracle
-    num_simulations::Int
-    num_considered_actions::Int
-    value_scale::Float64
-    max_visit_init::Int
+    num_simulations::Int = 64
+    num_considered_actions::Int = 8
+    value_scale::Float64 = 0.1f0
+    max_visit_init::Int = 50
 end
 
 """
@@ -204,13 +204,13 @@ end
 Create a new `Tree` node for a given environment `env` and an `oracle`.
 """
 function create_node(env::AbstractEnv, oracle)
-    prior, value = oracle(env)
+    prior, oracle_value = oracle(env)
     num_actions = length(legal_action_space(env))
     @assert num_actions > 0
     children = convert(Vector{Union{Nothing,Tree}}, fill(nothing, num_actions))
     num_visits = fill(Int32(0), num_actions)
     total_rewards = fill(Float64(0), num_actions)
-    return Tree(value, children, prior, num_visits, total_rewards)
+    return Tree(prior, oracle_value, children, num_visits, total_rewards)
 end
 
 """

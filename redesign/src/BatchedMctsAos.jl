@@ -15,6 +15,9 @@ using ..BatchedEnvs
 using ..Util.Devices
 using ..Util.Devices.KernelFuns: sum, argmax, maximum, softmax
 
+export Policy, explore, completed_qvalues
+export uniform_oracle, RolloutOracle
+
 """
 A batch, device-specific MCTS Policy that leverages an external oracle.
 
@@ -83,14 +86,14 @@ This Tree is represented as an Array of Structures.
     prev_reward::Float32 = 0.0f0
     prev_switched::Bool = false
     terminal::Bool = false
-    valid_actions::SVector{NumActions,Bool} = @SVector zeros(Bool, NumActions)
+    valid_actions_list::SVector{NumActions,Bool} = @SVector zeros(Bool, NumActions)
     # Oracle info
     prior::SVector{NumActions,Float32} = @SVector zeros(Float32, NumActions)
-    value_prior::Float32 = 0.0f0
+    oracle_value::Float32 = 0.0f0
     # Dynamic info
     children::SVector{NumActions,Int16} = @SVector zeros(Int16, NumActions)
+    num_visits::Int16 = Int16(0)
     total_rewards::Float32 = 0.0f0
-    num_visits::Int16 = Int16(1)
 end
 
 """
@@ -103,11 +106,11 @@ The other accepted arguments are specified in the documentation section of the `
 function Node{na}(state; args...) where {na}
     terminal = terminated(state)
     if terminal
-        valid_actions = SVector{na,Bool}(false for _ in 1:na)
+        valid_actions_list = SVector{na,Bool}(false for _ in 1:na)
     else
-        valid_actions = SVector{na,Bool}(false for _ in 1:na)
+        valid_actions_list = SVector{na,Bool}(valid_actions(state, i) for i in 1:na)
     end
-    return Node{na,typeof(state)}(; state, terminal, valid_actions, args...)
+    return Node{na,typeof(state)}(; state, terminal, valid_actions_list, args...)
 end
 
 """
@@ -153,13 +156,13 @@ node reached) from `mcts.oracle`.
 """
 function eval_states!(mcts, tree, frontier)
     (; na, ne) = tree_dims(tree)
-    prior = (@SVector ones(Float32, na)) / na
     Devices.foreach(1:ne, mcts.device) do batchnum
         nid = frontier[batchnum]
         node = tree[batchnum, nid]
         if !node.terminal
+            prior, oracle_value = mcts.oracle(node.state)
             @set! node.prior = prior
-            @set! node.value_prior = 0.0f0
+            @set! node.oracle_value = oracle_value
             tree[batchnum, nid] = node
         end
     end
@@ -211,7 +214,7 @@ function root_value_estimate(tree, node, bid)
     end
     children_value = total_qvalues
     total_prior > 0 && (children_value /= total_prior)
-    return (node.value_prior + total_visits * children_value) / (1 + total_visits)
+    return (node.oracle_value + total_visits * children_value) / (1 + total_visits)
 end
 
 """
@@ -301,6 +304,8 @@ function select!(mcts, tree, simnum, bid)
                 prev_switched=info.switched,
             )
             tree[bid, simnum] = child
+            @set! node.children[i] = simnum
+            tree[bid, cur] = node
             return Int16(simnum)
         end
     end
@@ -323,15 +328,18 @@ function backpropagate!(mcts, tree, frontier)
     (; ne) = tree_dims(tree)
     batch_ids = DeviceArray(mcts.device)(1:ne)
     map(batch_ids) do bid
-        node = tree[bid, frontier[bid]]
-        val = node.value_prior
+        sid = frontier[bid]
+        node = tree[bid, sid]
+        val = node.oracle_value
         while true
             @set! node.num_visits += Int16(1)
             @set! node.total_rewards += val
+            tree[bid, sid] = node
             if node.parent > 0
                 (node.prev_switched) && (val = -val)
                 val += node.prev_reward
-                node = tree[bid, node.parent]
+                sid = node.parent
+                node = tree[bid, sid]
             else
                 return nothing
             end
@@ -351,6 +359,46 @@ function explore(mcts, envs)
         backpropagate!(mcts, tree, frontier)
     end
     return tree
+end
+
+#####
+## Some standard oracles
+#####
+
+"""
+Oracle that always returns a value of 0 and a uniform policy.
+"""
+function uniform_oracle(env)
+    n = num_actions(env)
+    P = (@SVector ones(Float32, n)) ./ n
+    V = Float32(0.0)
+    return P, V
+end
+
+"""
+Oracle that performs a single random rollout to estimate state value.
+
+Given a state, the oracle selects random actions until a leaf node is reached.
+The resulting cumulative reward is treated as a stochastic value estimate.
+"""
+struct RolloutOracle{RNG<:AbstractRNG}
+    rng::RNG
+end
+
+function (oracle::RolloutOracle)(env)
+    rewards = Float32(0.0)
+    original_player = env.curplayer
+    cur_env = env
+    while !terminated(cur_env)
+        player = cur_env.curplayer
+        legal_actions = findall(valid_actions(cur_env))
+        a = rand(oracle.rng, legal_actions)
+        cur_env, (reward, _) = act(cur_env, a)
+        rewards += player == original_player ? reward : -reward
+    end
+    n = num_actions(env)
+    P = (@SVector ones(Float32, n)) ./ n
+    return P, rewards
 end
 
 end
