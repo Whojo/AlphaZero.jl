@@ -2,7 +2,7 @@
 Interface for batchable environements that can be run on the GPU.
 
 To implement this interface, please provide a method for each of these functions as
-described bellow: `num_actions`, `valid_actions`, 
+described bellow: `num_actions`, `valid_actions`, `act` and `terminated`.
 
 Checkout "src/Tests/Common/BitwiseTicTacToe.jl" for an example implementation of this
 interface.
