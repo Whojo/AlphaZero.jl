@@ -1,6 +1,9 @@
 """
 Interface for batchable environements that can be run on the GPU.
 
+To implement this interface, please provide a method for each of these functions as
+described bellow: `num_actions`, `valid_actions`, 
+
 Checkout "src/Tests/Common/BitwiseTicTacToe.jl" for an example implementation of this
 interface.
 """
@@ -18,12 +21,12 @@ This number includes the legal moves as well as the illegal ones.
 function num_actions end
 
 """
-    function valid_action(env::BatchedEnvs)
+    function valid_actions(env::BatchedEnvs)
 
 Return a vector of boolean indicating the indexes of legal actions for a given an
 environment `env`.
 
-    function valid_action(env::BatchedEnvs, pos)
+    function valid_actions(env::BatchedEnvs, pos)
 
 Return boolean indicating whether the action at index `pos` is legal in the
 environment `env`.
