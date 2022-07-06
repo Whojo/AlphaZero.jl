@@ -121,8 +121,7 @@ end
 Compute the qcoeff for a given Gumbel `mcts` policy and a given `node`.
     
 # Notes
-The paper introduces a sigma function, which we implement by
-sigma(q) = qcoeff * q
+The paper introduces a sigma function, which we implement by sigma(q) = qcoeff * q
 """
 function qcoeff(mcts::Policy, node::Tree)
     return mcts.value_scale * (mcts.max_visit_init + max_child_visits(node))
@@ -249,6 +248,8 @@ x . .
 . x .
 x o o
 ```
+
+See also `explore`.
 """
 function gumbel_explore(mcts::Policy, env::AbstractEnv, rng::AbstractRNG)
     # Creating an empty tree, sampling the Gumbel variables
@@ -326,6 +327,8 @@ x . .
 . x .
 x o o
 ```
+
+See also `gumbel_explore`.
 """
 function explore(mcts::Policy, env::AbstractEnv)
     node = create_node(env, mcts.oracle)
@@ -420,6 +423,8 @@ julia> env = RandomWalk1D()
 julia> uniform_oracle(env)
 ([0.5, 0.5], 0.0)
 ```
+
+See also `RolloutOracle`.
 """
 function uniform_oracle(env::AbstractEnv)
     n = length(legal_action_space(env))
@@ -448,6 +453,8 @@ julia> rollout_oracle = RolloutOracle(MersenneTwister(0))
 julia> rollout_oracle(env)
 ([0.5, 0.5], -1.0)
 ```
+
+See also `uniform_oracle`.
 """
 struct RolloutOracle{RNG<:AbstractRNG}
     rng::RNG
