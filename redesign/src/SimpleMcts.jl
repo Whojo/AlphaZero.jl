@@ -132,8 +132,8 @@ end
 
 Compute the root value for a given `node`.
 
-Its value depends on the `num_visits` and `qvalue` of all of its children and its
-`oracle_value`. See the code for more details.
+Its value depends on the `num_visits` and `qvalue` of all of its children combined with its
+`oracle_value` and `prior` estimate. See the code for more details.
 """
 function root_value_estimate(node::Tree)
     total_visits = sum(node.num_visits)
