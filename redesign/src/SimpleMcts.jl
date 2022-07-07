@@ -6,6 +6,7 @@ A straightforward non-batched implementation of Gumbel MCTS.
 - We reset the tree everytime (for now).
 - All values are from the current player perspective.
 - All computations are done using `Float64` but `Float32` is accepted from oracles.
+- It is the responsability of the oracle to only provides valid actions.
 """
 module SimpleMcts
 

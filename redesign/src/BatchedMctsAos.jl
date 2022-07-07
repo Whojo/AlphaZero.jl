@@ -481,7 +481,7 @@ julia> BatchedMctsAos.uniform_oracle(envs[1])
 (Float32[0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111], 0.0f0)
 ```
 
-See also `RolloutOracle`.
+See also [`RolloutOracle`](@ref).
 """
 function uniform_oracle(env)
     n = num_actions(env)
