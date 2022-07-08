@@ -250,7 +250,7 @@ x . .
 x o o
 ```
 
-See also `explore`.
+See also [`explore`](@ref).
 """
 function gumbel_explore(mcts::Policy, env::AbstractEnv, rng::AbstractRNG)
     # Creating an empty tree, sampling the Gumbel variables
@@ -329,7 +329,7 @@ x . .
 x o o
 ```
 
-See also `gumbel_explore`.
+See also [`gumbel_explore`](@ref).
 """
 function explore(mcts::Policy, env::AbstractEnv)
     node = create_node(env, mcts.oracle)
@@ -425,7 +425,7 @@ julia> uniform_oracle(env)
 ([0.5, 0.5], 0.0)
 ```
 
-See also `RolloutOracle`.
+See also [`RolloutOracle`](@ref).
 """
 function uniform_oracle(env::AbstractEnv)
     n = length(legal_action_space(env))
@@ -455,7 +455,7 @@ julia> rollout_oracle(env)
 ([0.5, 0.5], -1.0)
 ```
 
-See also `uniform_oracle`.
+See also [`uniform_oracle`](@ref).
 """
 struct RolloutOracle{RNG<:AbstractRNG}
     rng::RNG

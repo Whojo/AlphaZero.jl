@@ -170,6 +170,8 @@ end
 
 Evaluate the node at the `frontier` of the `tree` (i.e. the last unexplored or terminal
 node reached) from `mcts.oracle`.
+
+See also [`select!`](@ref) and ['backpropagate!'](@ref).
 """
 function eval_states!(mcts, tree, frontier)
     (; na, ne) = tree_dims(tree)
@@ -193,7 +195,7 @@ Compute the qvalue for the given `node`.
     
 This qvalue is not weighted from the player point of view.
 
-See also `qvalue`.
+See also [`qvalue`](@ref).
 """
 value(node) = node.total_rewards / node.num_visits
 
@@ -204,7 +206,7 @@ Compute the qvalue for the given `node`.
 
 This qvalue is weighted from the player point of view.
 
-See also `value`.
+See also [`value`](@ref).
 """
 qvalue(child) = value(child) * (-1)^child.prev_switched
 
@@ -350,6 +352,8 @@ policy and return the first unseen or terminal node as a new frontier.
 If it frontier was unseen before, a new `Node` is created in the `tree` at index `simnum`.
 After the node is added, one expect the oracle to be called on all frontier nodes where
 terminal=false.
+
+See also [`eval_states!`](@ref) and ['backpropagate!'](@ref).
 """
 function select!(mcts, tree, simnum)
     (; ne) = tree_dims(tree)
@@ -403,6 +407,8 @@ Update node values along the path to the `frontier` node in the `tree`.
 
 More precisely, the number of visits `num_visits` and the `total_rewards` are updated for
 the nodes of the path.
+
+See also ['select!'](@ref) and [`eval_states!`](@ref).
 """
 function backpropagate!(mcts, tree, frontier)
     (; ne) = tree_dims(tree)
@@ -461,6 +467,8 @@ x . .
 . x .
 x o o
 ```
+
+See also [`gumbel_explore`](@ref).
 """
 function explore(mcts, envs)
     tree = create_tree(mcts, envs)
