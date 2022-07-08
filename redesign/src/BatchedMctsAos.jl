@@ -1,6 +1,10 @@
 """
 An batched MCTS implementation that can run on GPU where trees
 are represented in Array of Structs format.
+
+# Notes
+- Some `Node` in the `Tree` are left uninitialized (even after a full `explore`). If you
+want to iterate over elements in the `Tree`, please only use the `children` attribute.
 """
 module BatchedMctsAos
 
