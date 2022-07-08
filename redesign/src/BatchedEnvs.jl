@@ -36,8 +36,9 @@ function valid_action end
 
 Play the action `pos` on the current environement `env`.
 
-`pos` is an index in the actions list. Return the new environement and a nammed tupple with
-the acquired `reward` and whether the player has `switched` or not.
+`pos` is an index in the actions list. It is responsability of the user to provide a valid
+action. Return the new environement and a nammed tupple with the acquired `reward` and
+whether the player has `switched` or not.
 
     function act(env::BatchedEnvs, pos_list::AbstractArray)
 
