@@ -57,10 +57,15 @@ An MCTS Policy that leverages an external oracle.
     ReinforcementLearningEnvironment.jl), computes the prior probabilities associated with
     its actions (children of a Mcts `Tree`) and the value associated with the provided
     environment.
-- `num_simulations::Int`: number of simulations to run on the given Mcts `Tree`.
-- `num_considered_actions::Int`: ... # TODO
-- `value_scale::Float64`: ... # TODO
-- `max_visit_init::Int`: ... # TODO
+- `num_simulations::Int = 64`: number of simulations to run on the given Mcts `Tree`.
+- `num_considered_actions::Int = 8`: number of actions considered by gumbel during
+    exploration. Only the `num_conidered_actions` actions with the highest `value_prior`
+    probabilities and gumbel noise will be used. It should be a power of 2.
+- `value_scale::Float64 = 0.1f0`: multiplying coefficient to weight the qvalues against the
+    prior probabilities during exploration. Prior probabilities have, by default, a
+    decreasing weight when the number of visits increase.
+- `max_visit_init::Int = 50`: artificial increase of the number of visits to weight qvalue
+    against prior probabilities on low visit count.
 
 # Notes
 The attributes `num_conidered_actions`, `value_scale` and `max_visit_init` are specific to

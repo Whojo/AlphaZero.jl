@@ -32,9 +32,14 @@ A batch, device-specific MCTS Policy that leverages an external oracle.
     environment.
 - `device::Device`: device on which the policy should preferably run (i.e. CPU or GPU).
 - `num_simulations::Int = 64`: number of simulations to run on the given Mcts `Tree`.
-- `num_considered_actions::Int = 8`: ... # TODO
-- `value_scale::Float32 = 0.1f0`: ... # TODO
-- `max_visit_init::Int = 50`: ... # TODO
+- `num_considered_actions::Int = 8`: number of actions considered by gumbel during
+    exploration. Only the `num_conidered_actions` actions with the highest `value_prior`
+    probabilities and gumbel noise will be used. It should be a power of 2.
+- `value_scale::Float32 = 0.1f0`: multiplying coefficient to weight the qvalues against the
+    prior probabilities during exploration. Prior probabilities have, by default, a
+    decreasing weight when the number of visits increase.
+- `max_visit_init::Int = 50`: artificial increase of the number of visits to weight qvalue
+    against prior probabilities on low visit count.
 
 # Notes
 The attributes `num_conidered_actions`, `value_scale` and `max_visit_init` are specific to
