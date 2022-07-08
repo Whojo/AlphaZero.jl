@@ -86,7 +86,7 @@ This Tree is represented as an Array of Structures.
     prev_reward::Float32 = 0.0f0
     prev_switched::Bool = false
     terminal::Bool = false
-    valid_actions_list::SVector{NumActions,Bool} = @SVector zeros(Bool, NumActions)
+    valid_actions::SVector{NumActions,Bool} = @SVector zeros(Bool, NumActions)
     # Oracle info
     prior::SVector{NumActions,Float32} = @SVector zeros(Float32, NumActions)
     oracle_value::Float32 = 0.0f0
@@ -106,11 +106,11 @@ The other accepted arguments are specified in the documentation section of the `
 function Node{na}(state; args...) where {na}
     terminal = terminated(state)
     if terminal
-        valid_actions_list = SVector{na,Bool}(false for _ in 1:na)
+        valid_actions = SVector{na,Bool}(false for _ in 1:na)
     else
-        valid_actions_list = SVector{na,Bool}(valid_actions(state, i) for i in 1:na)
+        valid_actions = SVector{na,Bool}(valid_action(state, i) for i in 1:na)
     end
-    return Node{na,typeof(state)}(; state, terminal, valid_actions_list, args...)
+    return Node{na,typeof(state)}(; state, terminal, valid_actions, args...)
 end
 
 """
@@ -149,6 +149,23 @@ function tree_dims(tree::Tree{N,S}) where {N,S}
 end
 
 """
+    function validate_prior(node, prior)
+
+Modify the `prior` probabilities vector returned by the oracle to consider only valid moves
+for the given `node`.
+    
+More precisely if a move is invalid (i.e its corresponding index in `node.valid_actions` is
+set to `false`), its oracle prior probability will be set to 0. The vector is l1-normalised
+afterward.
+"""
+function validate_prior(node, prior)
+    for unvalid_id in findall(!, node.valid_actions)
+        @set! prior[unvalid_id] = 0
+    end
+    return prior ./ sum(prior; init=0)
+end
+
+"""
     function eval_states!(mcts, tree, frontier)
 
 Evaluate the node at the `frontier` of the `tree` (i.e. the last unexplored or terminal
@@ -161,7 +178,7 @@ function eval_states!(mcts, tree, frontier)
         node = tree[batchnum, nid]
         if !node.terminal
             prior, oracle_value = mcts.oracle(node.state)
-            @set! node.prior = prior
+            @set! node.prior = validate_prior(node, prior)
             @set! node.oracle_value = oracle_value
             tree[batchnum, nid] = node
         end
@@ -258,7 +275,7 @@ function completed_qvalues(tree, node, bid)
     na = length(node.children)
     ret = imap(1:na) do i
         cnid = node.children[i]
-        return cnid > 0 ? value(tree[bid, cnid]) : root_value
+        return cnid > 0 ? qvalue(tree[bid, cnid]) : root_value
     end
     return SVector{na}(ret)
 end
@@ -488,50 +505,3 @@ function uniform_oracle(env)
     P = (@SVector ones(Float32, n)) ./ n
     V = Float32(0.0)
     return P, V
-end
-
-"""
-Oracle that performs a single random rollout to estimate state value.
-
-Given a state, the oracle selects random actions until a leaf node is reached.
-The resulting cumulative reward is treated as a stochastic value estimate.
-Return a tuple with an uniform policy and the stochastic value estimate for the given
-environment `env`.
-
-# Example
-```jldoctest
-julia> using RLZero
-julia> using .Tests
-julia> using Random: MersenneTwister
-
-julia> envs = BatchedMctsAosTests.tic_tac_toe_winning_envs()
-[...]
-
-julia> rollout_oracle = BatchedMctsAos.RolloutOracle(MersenneTwister(0))
-julia> rollout_oracle(envs[1])
-(Float32[0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111], -1.0)
-```
-
-See also `uniform_oracle`.
-"""
-struct RolloutOracle{RNG<:AbstractRNG}
-    rng::RNG
-end
-
-function (oracle::RolloutOracle)(env)
-    rewards = Float32(0.0)
-    original_player = env.curplayer
-    cur_env = env
-    while !terminated(cur_env)
-        player = cur_env.curplayer
-        legal_actions = findall(valid_actions(cur_env))
-        a = rand(oracle.rng, legal_actions)
-        cur_env, (reward, _) = act(cur_env, a)
-        rewards += player == original_player ? reward : -reward
-    end
-    n = num_actions(env)
-    P = (@SVector ones(Float32, n)) ./ n
-    return P, rewards
-end
-
-end

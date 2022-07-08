@@ -12,7 +12,7 @@ interface.
 """
 module BatchedEnvs
 
-export num_actions, valid_actions, act, terminated
+export num_actions, valid_action, act, terminated
 
 """
     function num_actions(env::BatchedEnvs)
@@ -24,17 +24,12 @@ This number includes the legal moves as well as the illegal ones.
 function num_actions end
 
 """
-    function valid_actions(env::BatchedEnvs)
-
-Return a vector of boolean indicating the indexes of legal actions for a given an
-environment `env`.
-
-    function valid_actions(env::BatchedEnvs, pos)
+    function valid_action(env::BatchedEnvs, pos)
 
 Return boolean indicating whether the action at index `pos` is legal in the
 environment `env`.
 """
-function valid_actions end
+function valid_action end
 
 """
     function act(env::BatchedEnvs, pos)
