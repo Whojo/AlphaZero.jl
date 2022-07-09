@@ -57,6 +57,7 @@ end
 function BatchedEnvs.act(env::BitwiseTicTacToeEnv, pos_list::AbstractArray)
     count_switched::Int8 = 0
     new_env = env
+    info = (; reward=0, switched=false)
     for pos in pos_list
         new_env, info = BatchedEnvs.act(new_env, pos)
         count_switched += info.switched
