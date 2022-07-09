@@ -522,3 +522,6 @@ function uniform_oracle(env)
     P = (@SVector ones(Float32, n)) ./ n
     V = Float32(0.0)
     return P, V
+end
+
+end
