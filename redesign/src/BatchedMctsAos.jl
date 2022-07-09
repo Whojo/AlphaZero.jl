@@ -508,11 +508,11 @@ Useful for testing and setting up a pipeline. Can be used as oracle in the struc
 julia> using RLZero
 julia> using .Tests
 
-julia> envs = BatchedMctsAosTests.tic_tac_toe_winning_envs()
-[...]
+julia> env = BitwiseRandomWalk1DEnv()
+_ _ _ X _ _ _ 
 
-julia> BatchedMctsAos.uniform_oracle(envs[1])
-(Float32[0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111, 0.11111111], 0.0f0)
+julia> BatchedMctsAos.uniform_oracle(env)
+(Float32[0.5, 0.5], 0.0f0)
 ```
 
 See also [`RolloutOracle`](@ref).
