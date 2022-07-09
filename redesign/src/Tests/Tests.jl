@@ -14,6 +14,9 @@ include("BatchedEnvsTests.jl")
 include("BitwiseTicTacToeTests.jl")
 @reexport using .BitwiseTicTacToeTests
 
+include("BitwiseRandomWalk1DTests.jl")
+@reexport using .BitwiseRandomWalk1DTests
+
 include("UtilTests.jl")
 @reexport using .UtilTests
 
@@ -30,6 +33,7 @@ function run_all_tests()
     @testset "RLZero tests" begin
         run_util_tests()
         run_bitwise_tictactoe_tests()
+        run_BitwiseRandomWalk1D_tests()
         run_mcts_tests()
         run_batched_mcts_tests()
     end
