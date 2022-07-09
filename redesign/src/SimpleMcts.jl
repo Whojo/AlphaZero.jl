@@ -216,7 +216,7 @@ function create_node(env::AbstractEnv, oracle)
     children = convert(Vector{Union{Nothing,Tree}}, fill(nothing, num_actions))
     num_visits = fill(Int32(0), num_actions)
     total_rewards = fill(Float64(0), num_actions)
-    return Tree(prior, oracle_value, children, num_visits, total_rewards)
+    return Tree(oracle_value, children, prior, num_visits, total_rewards)
 end
 
 """
