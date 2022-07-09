@@ -13,21 +13,42 @@ function test_equivalent(BatchedEnv, BaselineEnv)
     for i in 1:100
         env = BatchedEnv()
         env_baseline = BaselineEnv()
+
+        actions_played = Int[]
+        start_env = env
+        cumulated_reward = 0
+        switched_count = 0
+
         while !BatchedEnvs.terminated(env)
             valid_actions = filter(1:BatchedEnvs.num_actions(env)) do i
                 BatchedEnvs.valid_action(env, i)
             end
             valid_actions_baseline = collect(RLBase.legal_action_space(env_baseline))
+
             @test sort(valid_actions) == sort(valid_actions_baseline)
             @test !isempty(valid_actions)
+
             action = rand(rng, valid_actions)
+            append!(actions_played, action)
             env, info = BatchedEnvs.act(env, action)
             env_baseline(action)
+
             reward_baseline = RLBase.reward(env_baseline)
             info.switched && (reward_baseline *= -1)
             @test info.reward == reward_baseline
+
+            info.switched && (cumulated_reward *= -1)
+            cumulated_reward += info.reward
+            switched_count += info.switched
         end
         @test RLBase.is_terminated(env_baseline)
+
+        end_env, info = BatchedEnvs.act(start_env, actions_played)
+        cumulated_switched = Bool(switched_count % 2)
+
+        @test end_env === env
+        @test info.reward == cumulated_reward
+        @test info.switched == cumulated_switched
     end
     return nothing
 end

@@ -51,8 +51,8 @@ end
 
 function BatchedEnvs.act(env::BitwiseRandomWalk1DEnv, action_list::AbstractArray)
     new_env = env
-    for pos in pos_list
-        new_env, _ = BatchedEnvs.act(new_env, pos)
+    for action in action_list
+        new_env, _ = BatchedEnvs.act(new_env, action)
     end
     return new_env, (; reward=get_reward(new_env), switched=false)
 end
