@@ -20,7 +20,7 @@ using ..Util.Devices
 using ..Util.Devices.KernelFuns: sum, argmax, maximum, softmax
 
 export Policy, explore, completed_qvalues
-export uniform_oracle, RolloutOracle
+export uniform_oracle
 
 """
 A batch, device-specific MCTS Policy that leverages an external oracle.
